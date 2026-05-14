@@ -16,12 +16,37 @@ import {
 import { AppStatus } from './types';
 
 const app = express();
-const uploadDir = path.join(process.cwd(), 'uploads');
+let uploadDir = path.join(process.cwd(), 'uploads');
 const publicDir = path.join(process.cwd(), 'public');
 
+const isServerless = Boolean(
+  process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NOW_REGION ||
+    process.env.FUNCTIONS_WORKER_RUNTIME,
+);
+
+if (isServerless) {
+  uploadDir = path.join('/tmp', 'uploads');
+}
+
 // Create uploads directory if it doesn't exist
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (error: any) {
+  const shouldFallback =
+    (error?.code === 'EROFS' || error?.code === 'EACCES') && uploadDir !== path.join('/tmp', 'uploads');
+
+  if (!shouldFallback) {
+    throw error;
+  }
+
+  uploadDir = path.join('/tmp', 'uploads');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
 }
 
 const storage = multer.diskStorage({
@@ -46,7 +71,7 @@ const upload = multer({
       '',
     ]);
 
-    if (allowedExtensions.has(extension) && allowedMimes.has(file.mimetype)) {
+    if (allowedExtensions.has(extension) && (allowedMimes.has(file.mimetype) || !file.mimetype)) {
       cb(null, true);
     } else {
       cb(new Error('Only PDF and TXT files are allowed'));
