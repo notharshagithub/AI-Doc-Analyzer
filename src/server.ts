@@ -271,3 +271,5 @@ export function startServer() {
     console.log(`💬 Chat endpoint: POST http://localhost:${port}/api/chat\n`);
   });
 }
+
+export default app;
